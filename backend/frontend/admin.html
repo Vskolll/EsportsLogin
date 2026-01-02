@@ -49,6 +49,15 @@
             margin-top: 4px;
             white-space: pre-wrap;
         }
+        .notify {
+            display: inline-block;
+            margin-left: 12px;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        .notify.ok { background: #062e1b; color: #7ee787; border: 1px solid #164b2e }
+        .notify.err { background: #2b0505; color: #ffb4b4; border: 1px solid #5a1a1a }
     </style>
 </head>
 <body>
@@ -56,6 +65,16 @@
 <header>
     <strong>Telegram Admin</strong>
     — <span id="status">connecting...</span>
+    <span class="controls" style="margin-left:16px">
+        Account:
+        <select id="accountSelect" aria-label="Select account">
+            <option value="">(none)</option>
+        </select>
+        <button id="startBtn">Start</button>
+        <button id="stopBtn">Stop</button>
+        <label style="margin-left:8px">filter chat id: <input id="chatFilter" placeholder="optional chat id" style="width:120px" /></label>
+        <span id="notify" class="notify" style="display:none"></span>
+    </span>
 </header>
 
 <div id="messages"></div>
@@ -63,6 +82,13 @@
 <script>
     const statusEl = document.getElementById("status")
     const messagesEl = document.getElementById("messages")
+    const accountSelect = document.getElementById("accountSelect")
+    const startBtn = document.getElementById("startBtn")
+    const stopBtn = document.getElementById("stopBtn")
+    const chatFilterEl = document.getElementById("chatFilter")
+
+    let selectedLogin = localStorage.getItem("selectedLogin") || ""
+    let logins = {}
 
     const ws = new WebSocket(`ws://${location.host}/auth/ws/messages`)
 
@@ -83,13 +109,22 @@
 
     ws.onmessage = (event) => {
         const data = JSON.parse(event.data)
+    // filter by selected login (if any)
+    if (selectedLogin && data.login_id !== selectedLogin) return
 
-        const div = document.createElement("div")
+        // filter by chat id if specified
+        const chatFilter = chatFilterEl.value && chatFilterEl.value.trim()
+        if (chatFilter) {
+            // compare as string because chat ids may be numbers
+            if (String(data.chat_id) !== String(chatFilter)) return
+        }
+
+    const div = document.createElement("div")
         div.className = "msg"
 
         div.innerHTML = `
             <div class="chat">
-                chat: ${data.chat_title || data.chat_id}
+                login: ${data.login_id} — chat: ${data.chat_title || data.chat_id}
             </div>
             <div class="user">
                 from: ${data.sender_username || data.sender_id}
@@ -101,6 +136,94 @@
 
         messagesEl.appendChild(div)
         messagesEl.scrollTop = messagesEl.scrollHeight
+    }
+
+    // --- account management ---
+    function setSelectedLogin(id) {
+        selectedLogin = id || ""
+        localStorage.setItem("selectedLogin", selectedLogin)
+        // update select value
+        accountSelect.value = selectedLogin
+    }
+
+    async function refreshLogins() {
+        try {
+            const res = await fetch('/auth/logins')
+            if (!res.ok) {
+                showNotification('Failed to load accounts: ' + res.status, 'err')
+                return
+            }
+            const arr = await res.json()
+            // rebuild map
+            logins = {}
+            // preserve previous selection if still present
+            const prev = selectedLogin
+            accountSelect.innerHTML = '<option value="">(none)</option>'
+            arr.forEach(item => {
+                logins[item.login_id] = item
+                const opt = document.createElement('option')
+                opt.value = item.login_id
+                const friendly = item.username ? `${item.username} ` : ''
+                opt.textContent = `${friendly}${item.login_id} [${item.status || 'unknown'}]${item.listener_started ? ' (listening)' : ''}`
+                accountSelect.appendChild(opt)
+            })
+            if (prev) {
+                // if previously selected login still exists, keep selection
+                const found = arr.some(i => i.login_id === prev)
+                if (found) setSelectedLogin(prev)
+                else setSelectedLogin('')
+            }
+        } catch (e) {
+            console.error('Failed to fetch logins', e)
+            showNotification('Failed to fetch accounts: ' + e.message, 'err')
+        }
+    }
+
+    accountSelect.addEventListener('change', (e) => {
+        setSelectedLogin(e.target.value)
+    })
+
+    startBtn.addEventListener('click', async () => {
+        if (!selectedLogin) return showNotification('Select an account first', 'err')
+        try {
+            const res = await fetch('/auth/listen', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({login_id: selectedLogin})})
+            const j = await res.json()
+            if (res.ok) {
+                showNotification('Started listening', 'ok')
+                await refreshLogins()
+            } else {
+                showNotification('Failed to start: ' + (j.detail || JSON.stringify(j)), 'err')
+            }
+        } catch (e) { showNotification('Start error: ' + e.message, 'err') }
+    })
+
+    stopBtn.addEventListener('click', async () => {
+        if (!selectedLogin) return showNotification('Select an account first', 'err')
+        try {
+            const res = await fetch('/auth/unlisten', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({login_id: selectedLogin})})
+            const j = await res.json()
+            if (res.ok) {
+                showNotification('Stopped listening', 'ok')
+                await refreshLogins()
+            } else {
+                showNotification('Failed to stop: ' + (j.detail || JSON.stringify(j)), 'err')
+            }
+        } catch (e) { showNotification('Stop error: ' + e.message, 'err') }
+    })
+
+    // initial load
+    setSelectedLogin(selectedLogin)
+    refreshLogins()
+    // refresh periodically to show status changes
+    setInterval(refreshLogins, 5000)
+
+    function showNotification(msg, type = 'ok', timeout = 4000) {
+        const el = document.getElementById('notify')
+        if (!el) return
+        el.textContent = msg
+        el.className = 'notify ' + (type === 'err' ? 'err' : 'ok')
+        el.style.display = 'inline-block'
+        if (timeout) setTimeout(() => { el.style.display = 'none' }, timeout)
     }
 
     function escapeHtml(text) {
