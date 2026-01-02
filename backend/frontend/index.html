@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Telegram QR Login</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            padding: 40px;
+        }
+        img {
+            border: 1px solid #ccc;
+        }
+        #status {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<h2>Telegram QR Login</h2>
+
+<button onclick="start()">Start login</button>
+<br><br>
+
+<img id="qr" width="300" alt="Telegram QR code">
+<br><br>
+
+<div id="status">status: idle</div>
+<br>
+
+<input id="password" placeholder="2FA password">
+<button onclick="sendPassword()">Send password</button>
+
+<script>
+    let loginId = null
+
+    async function start() {
+        document.getElementById("status").innerText = "status: starting..."
+
+        try {
+            const res = await fetch("/auth/start", {
+                method: "POST"
+            })
+
+            if (!res.ok) {
+                throw new Error("Backend error: " + res.status)
+            }
+
+            const data = await res.json()
+            loginId = data.login_id
+
+            document.getElementById("qr").src =
+            "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=" +
+            encodeURIComponent(data.qr_url)
+
+            poll()
+
+        } catch (e) {
+            console.error(e)
+            document.getElementById("status").innerText = "status: error"
+            alert("Start login failed. Check console.")
+        }
+    }
+
+   
+async function poll() {
+    if (!loginId) return
+
+    try {
+        const res = await fetch(`/auth/status/${loginId}`)
+
+        if (!res.ok) {
+            console.warn("Status request failed:", res.status)
+            setTimeout(poll, 1500)
+            return
+        }
+
+        const data = await res.json()
+
+        if (!data || !data.status) {
+            console.warn("Empty status response:", data)
+            setTimeout(poll, 1500)
+            return
+        }
+
+        document.getElementById("status").innerText =
+            "status: " + data.status
+
+        if (data.status !== "authorized") {
+            setTimeout(poll, 1500)
+        }
+    } catch (e) {
+        console.error("Polling error:", e)
+        setTimeout(poll, 1500)
+    }
+}
+
+
+
+    async function sendPassword() {
+        if (!loginId) {
+            alert("Start login first")
+            return
+        }
+
+        const pwd = document.getElementById("password").value
+
+        try {
+            await fetch("/auth/password", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    login_id: loginId,
+                    password: pwd
+                })
+            })
+        } catch (e) {
+            console.error(e)
+            alert("Password submit failed")
+        }
+    }
+</script>
+
+</body>
+</html>
