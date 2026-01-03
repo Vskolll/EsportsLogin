@@ -9,16 +9,11 @@
     :root{
       --bg:#0b0f17;
       --panel:#0f1523;
-      --panel2:#0c1220;
-      --card:#0f172a;
-      --card2:#0b1222;
       --border:rgba(255,255,255,.08);
       --text:#e6e9f2;
       --muted:rgba(230,233,242,.65);
       --muted2:rgba(230,233,242,.45);
       --blue:#60a5fa;
-      --blue2:#3b82f6;
-      --yellow:#fbbf24;
       --green:#34d399;
       --red:#fb7185;
       --shadow: 0 10px 30px rgba(0,0,0,.35);
@@ -102,6 +97,7 @@
       font-size: 12px;
       transition: transform .08s ease, background .15s ease, border-color .15s ease;
       user-select:none;
+      white-space: nowrap;
     }
     .btn:hover{ background: rgba(15,21,35,.75); border-color: rgba(255,255,255,.18); }
     .btn:active{ transform: translateY(1px); }
@@ -267,7 +263,7 @@
       padding: 40px;
     }
     .emptyCard{
-      max-width: 560px;
+      max-width: 600px;
       border:1px solid var(--border);
       border-radius: 22px;
       padding: 18px 18px;
@@ -352,7 +348,7 @@
       <div class="logo"></div>
       <div>
         <h1>Telegram Admin</h1>
-        <div class="sub">Чаты отдельно • Фильтр • Без “пустого спама” • Нормальное открытие</div>
+        <div class="sub">Дедуп сообщений • Export/Import сессии</div>
       </div>
     </div>
 
@@ -364,7 +360,7 @@
           <span id="wsStatus" class="v">connecting...</span>
         </div>
 
-        <div class="pill" title="Сессия жива, если в последние N секунд был трафик (сообщения/пинги)">
+        <div class="pill" title="Сессия жива, если в последние N секунд был трафик">
           <span id="sessDot" class="dot"></span>
           <span class="t">Session:</span>
           <span id="sessStatus" class="v">unknown</span>
@@ -381,6 +377,10 @@
       <button id="startBtn" class="btn primary">Start</button>
       <button id="stopBtn" class="btn danger">Stop</button>
       <button id="wakeBtn" class="btn">Wake</button>
+
+      <button id="exportBtn" class="btn" title="Скачать JSON с текущей сессией (чаты/сообщения/выбор)">Export</button>
+      <button id="importBtn" class="btn" title="Загрузить ранее экспортированный JSON">Import</button>
+      <input id="importFile" type="file" accept="application/json" style="display:none"/>
 
       <label style="display:flex;align-items:center;gap:6px;margin-left:8px;font-size:12px;color:var(--muted)">
         <input type="checkbox" id="autoWake" /> Auto-wake
@@ -429,7 +429,7 @@
         </div>
         <div style="display:flex; gap:8px; align-items:center;">
           <span class="badge" id="msgCountBadge">0 msgs</span>
-          <button id="markReadBtn" class="btn" title="Снять 'new' у текущего чата (не авто)">Mark read</button>
+          <button id="markReadBtn" class="btn" title="Снять 'new' у текущего чата">Mark read</button>
         </div>
       </div>
 
@@ -438,9 +438,8 @@
           <div class="emptyCard">
             <h2>Готово.</h2>
             <p>
-              Исправлено: <b>пустые/сервисные события</b> больше не раздувают “new”.<br/>
-              Исправлено: при клике чат <b>не пропадает</b> из списка в режиме “Only new”.<br/>
-              Чат считается прочитанным только по кнопке <b>Mark read</b>.
+              Дубли режутся по <b>message_id</b> (если есть) и по фингерпринту <b>sender+текст+время(сек)</b>.<br/>
+              <b>Export</b> — скачивает JSON. <b>Import</b> — восстанавливает JSON обратно.
             </p>
           </div>
         </div>
@@ -464,7 +463,6 @@
   // --------------------- Elements
   const wsStatusEl = document.getElementById("wsStatus");
   const wsDotEl = document.getElementById("wsDot");
-
   const sessStatusEl = document.getElementById("sessStatus");
   const sessDotEl = document.getElementById("sessDot");
 
@@ -475,8 +473,11 @@
   const wakeBtn = document.getElementById("wakeBtn");
   const autoWakeEl = document.getElementById("autoWake");
 
-  const notifyEl = document.getElementById("notify");
+  const exportBtn = document.getElementById("exportBtn");
+  const importBtn = document.getElementById("importBtn");
+  const importFile = document.getElementById("importFile");
 
+  const notifyEl = document.getElementById("notify");
   const chatListEl = document.getElementById("chatList");
   const chatSearchEl = document.getElementById("chatSearch");
   const onlyNewBtn = document.getElementById("onlyNewBtn");
@@ -497,25 +498,21 @@
 
   // --------------------- State
   let selectedLogin = localStorage.getItem("selectedLogin") || "";
-  let selectedChatKey = localStorage.getItem("selectedChatKey") || ""; // `${login_id}|${chat_id}`
+  let selectedChatKey = localStorage.getItem("selectedChatKey") || "";
   let logins = {};
 
-  // chats: key -> { login_id, chat_id, chat_title, last_ts, unread, messages: [], seenIds:Set }
+  // chats: key -> { login_id, chat_id, chat_title, last_ts, unread, messages: [], seenIds:Set, seenFPs:Set }
   const chats = new Map();
 
-  // session liveness
   let lastTrafficAt = 0;
   const SESSION_ALIVE_MS = 15000;
 
-  // autoscroll (for selected chat)
-  let autoScroll = true;
-
-  // UI-only filter
+  let autoScroll = (localStorage.getItem("autoScroll") !== "0");
   let showOnlyNew = (localStorage.getItem("showOnlyNew") === "1");
 
-  // Keep memory reasonable
-  const MAX_PER_CHAT = 500;
-  const MAX_ID_CACHE_PER_CHAT = 1200;
+  const MAX_PER_CHAT = 700;
+  const MAX_ID_CACHE_PER_CHAT = 2000;
+  const MAX_FP_CACHE_PER_CHAT = 2500;
 
   // --------------------- Helpers
   function nowTs(){ return Date.now(); }
@@ -587,24 +584,19 @@
     selectedLogin = id || "";
     localStorage.setItem("selectedLogin", selectedLogin);
     accountSelect.value = selectedLogin;
-
     selLoginKbd.textContent = selectedLogin || "(none)";
 
-    // если выбран чат другого логина — сбрасываем выбор чата
     if (selectedChatKey && selectedLogin && !selectedChatKey.startsWith(String(selectedLogin) + "|")) {
       selectedChatKey = "";
       localStorage.setItem("selectedChatKey", "");
-      renderActiveChat();
+      renderActiveChat(false);
     }
-
     renderChatList();
   }
 
   function setSelectedChat(key){
     selectedChatKey = key || "";
     localStorage.setItem("selectedChatKey", selectedChatKey);
-
-    // ВАЖНО: больше НЕ делаем unread=0 при открытии (это ломало Only new)
     renderChatList();
     renderActiveChat(true);
   }
@@ -613,54 +605,37 @@
     return !!(data && (data.type === "ping" || data.event === "ping" || data.op === "ping"));
   }
 
-  // Приводим разные форматы payload к единому виду
+  // --------------------- Normalize payload
   function normalizeIncoming(raw){
-    // часто бэкенды шлют: {type, payload:{...}} или {event, data:{...}}
     const base = raw && typeof raw === "object" ? raw : {};
     const inner = base.payload || base.data || base.message || base.msg || null;
-
-    // если "внутренний" объект содержит нужные поля — берём его
     const src = (inner && typeof inner === "object") ? {...base, ...inner} : base;
 
     const login_id = src.login_id ?? src.login ?? src.account ?? "";
-    const chat_id  = src.chat_id  ?? src.chat   ?? src.peer_id ?? src.dialog_id ?? null;
-
+    const chat_id  = src.chat_id  ?? src.chat   ?? src.peer_id ?? src.dialog_id ?? src.peer ?? null;
     const chat_title = src.chat_title ?? src.title ?? src.chat_name ?? "";
 
-    const sender_id = src.sender_id ?? src.from_id ?? src.user_id ?? src.from ?? "";
+    const sender_id = src.sender_id ?? src.from_id ?? src.user_id ?? src.from ?? src.sender ?? "";
     const sender_username = src.sender_username ?? src.username ?? src.from_username ?? src.from_name ?? "";
 
-    // текст
-    const text = (typeof src.text === "string" ? src.text :
-                  typeof src.message === "string" ? src.message :
-                  typeof src.body === "string" ? src.body : "");
+    const text =
+      (typeof src.text === "string" ? src.text :
+       typeof src.message === "string" ? src.message :
+       typeof src.body === "string" ? src.body : "");
 
-    // message id (для дедупликации)
-    const message_id = src.message_id ?? src.msg_id ?? src.id ?? src.update_id ?? null;
+    const message_id =
+      src.message_id ?? src.msg_id ?? src.id ?? src.mid ?? src.update_id ?? src.random_id ?? null;
 
-    // timestamp: поддержка ms или seconds
+    // timestamp: ms or seconds
     let ts = null;
-    const t = src.ts ?? src.date ?? src.timestamp ?? src.time ?? null;
-    if (typeof t === "number") {
-      ts = (t > 1e12) ? t : (t * 1000); // если секунды — умножаем
-    }
+    const t = src.ts ?? src.date ?? src.timestamp ?? src.time ?? src.message_date ?? null;
+    if (typeof t === "number") ts = (t > 1e12) ? t : (t * 1000);
 
     const kind = src.type ?? src.event ?? base.type ?? base.event ?? "";
 
-    return {
-      kind,
-      login_id,
-      chat_id,
-      chat_title,
-      sender_id,
-      sender_username,
-      text,
-      message_id,
-      ts
-    };
+    return { kind, login_id, chat_id, chat_title, sender_id, sender_username, text, message_id, ts };
   }
 
-  // считаем "реальным сообщением" только то, что имеет текст (или явно type/message)
   function isRealMessage(n){
     if (!n) return false;
     const hasText = (typeof n.text === "string" && n.text.trim().length > 0);
@@ -678,7 +653,8 @@
         last_ts: 0,
         unread: 0,
         messages: [],
-        seenIds: new Set()
+        seenIds: new Set(),
+        seenFPs: new Set(),
       });
     }
     const chat = chats.get(key);
@@ -686,38 +662,48 @@
     return chat;
   }
 
+  // Главная защита от дублей:
+  // 1) если есть message_id -> дедуп по нему
+  // 2) если нет/не помогает -> дедуп по fingerprint: sender + text + tsSec
+  function buildFingerprint(n, tsMs){
+    const sender = String(n.sender_id || n.sender_username || "");
+    const text = String(n.text || "").trim();
+    const tsSec = Math.floor((tsMs || 0) / 1000);
+    return `${sender}|${tsSec}|${text}`;
+  }
+
   function pushMessage(chat, n){
-    // дедуп по message_id (если есть)
+    const text = (n.text || "").trim();
+    if (!text) return false;
+
+    const tsMs = n.ts || nowTs();
+
+    // 1) message_id dedup
     if (n.message_id != null) {
       const idStr = String(n.message_id);
       if (chat.seenIds.has(idStr)) return false;
       chat.seenIds.add(idStr);
-
-      // ограничиваем память seenIds
-      if (chat.seenIds.size > MAX_ID_CACHE_PER_CHAT) {
-        // тупо “обнуляем” кэш, чтобы не рос бесконечно
-        chat.seenIds.clear();
-        chat.seenIds.add(idStr);
-      }
+      if (chat.seenIds.size > MAX_ID_CACHE_PER_CHAT) chat.seenIds.clear();
     }
 
+    // 2) fingerprint dedup (ловит одинаковые повторы даже без id)
+    const fp = buildFingerprint(n, tsMs);
+    if (chat.seenFPs.has(fp)) return false;
+    chat.seenFPs.add(fp);
+    if (chat.seenFPs.size > MAX_FP_CACHE_PER_CHAT) chat.seenFPs.clear();
+
     const msg = {
-      ts: n.ts || nowTs(),
+      ts: tsMs,
       sender_id: n.sender_id,
       sender_username: n.sender_username,
-      text: n.text || ""
+      text: text
     };
-
-    // если сообщение пустое — НЕ добавляем вообще (убирает “спам”)
-    if (!msg.text || !msg.text.trim()) return false;
 
     chat.messages.push(msg);
     chat.last_ts = msg.ts;
 
-    // ограничиваем историю
     if (chat.messages.length > MAX_PER_CHAT) {
-      const extra = chat.messages.length - MAX_PER_CHAT;
-      chat.messages.splice(0, extra);
+      chat.messages.splice(0, chat.messages.length - MAX_PER_CHAT);
     }
     return true;
   }
@@ -726,11 +712,9 @@
   async function refreshLogins() {
     try {
       const res = await fetch('/auth/logins');
-      if (!res.ok) {
-        showNotification('Failed to load accounts: ' + res.status, 'err');
-        return;
-      }
+      if (!res.ok) return showNotification('Failed to load accounts: ' + res.status, 'err');
       const arr = await res.json();
+
       logins = {};
       const prev = selectedLogin;
 
@@ -744,13 +728,8 @@
         accountSelect.appendChild(opt);
       });
 
-      if (prev) {
-        const found = arr.some(i => i.login_id === prev);
-        if (found) setSelectedLogin(prev);
-        else setSelectedLogin('');
-      } else {
-        setSelectedLogin('');
-      }
+      if (prev && arr.some(i => i.login_id === prev)) setSelectedLogin(prev);
+      else setSelectedLogin('');
     } catch (e) {
       console.error('Failed to fetch logins', e);
       showNotification('Failed to fetch accounts: ' + e.message, 'err');
@@ -835,7 +814,7 @@
         if (selectedLogin && String(chat.login_id) !== String(selectedLogin)) return false;
         if (cf && String(chat.chat_id) !== String(cf)) return false;
 
-        // IMPORTANT: в режиме Only new всё равно показываем активный чат
+        // IMPORTANT: в режиме Only new показываем активный чат даже если unread=0
         if (showOnlyNew && !(chat.unread > 0)) {
           const key = chatKey(chat.login_id, chat.chat_id);
           if (key !== selectedChatKey) return false;
@@ -889,6 +868,7 @@
   function renderActiveChat(scrollToBottom){
     chatFilterKbd.textContent = (chatFilterEl.value || "").trim() || "—";
     autoScrollKbd.textContent = autoScroll ? "ON" : "OFF";
+    localStorage.setItem("autoScroll", autoScroll ? "1" : "0");
 
     if (!selectedChatKey || !chats.has(selectedChatKey)){
       emptyStateEl.style.display = "flex";
@@ -933,9 +913,7 @@
     messageThreadEl.innerHTML = "";
     messageThreadEl.appendChild(frag);
 
-    if (scrollToBottom && autoScroll) {
-      mainBodyEl.scrollTop = mainBodyEl.scrollHeight;
-    }
+    if (scrollToBottom && autoScroll) mainBodyEl.scrollTop = mainBodyEl.scrollHeight;
   }
 
   // --------------------- Controls
@@ -963,7 +941,7 @@
     localStorage.setItem("selectedChatKey", "");
     showNotification("Cleared UI cache", "ok");
     renderChatList();
-    renderActiveChat();
+    renderActiveChat(false);
   });
 
   markReadBtn.addEventListener("click", () => {
@@ -986,6 +964,108 @@
     }
   });
 
+  // --------------------- Export/Import Session
+  function exportSession(){
+    const payload = {
+      version: 1,
+      exported_at: new Date().toISOString(),
+      ui: {
+        selectedLogin,
+        selectedChatKey,
+        showOnlyNew,
+        autoScroll,
+        chatFilter: (chatFilterEl.value || ""),
+        chatSearch: (chatSearchEl.value || "")
+      },
+      chats: Array.from(chats.entries()).map(([key, c]) => ({
+        key,
+        login_id: c.login_id,
+        chat_id: c.chat_id,
+        chat_title: c.chat_title,
+        last_ts: c.last_ts,
+        unread: c.unread,
+        messages: c.messages
+      }))
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {type: "application/json"});
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    const safeDate = new Date().toISOString().replace(/[:.]/g, "-");
+    a.download = `tg-admin-session-${safeDate}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    showNotification("Exported session JSON", "ok", 1800);
+  }
+
+  function importSessionFromObject(payload){
+    if (!payload || payload.version !== 1 || !Array.isArray(payload.chats)) {
+      showNotification("Import failed: invalid JSON format", "err");
+      return;
+    }
+
+    chats.clear();
+
+    for (const item of payload.chats) {
+      if (!item || !item.key || !item.chat_id) continue;
+      chats.set(item.key, {
+        login_id: item.login_id ?? "",
+        chat_id: item.chat_id,
+        chat_title: item.chat_title ?? "",
+        last_ts: item.last_ts ?? 0,
+        unread: item.unread ?? 0,
+        messages: Array.isArray(item.messages) ? item.messages : [],
+        seenIds: new Set(),
+        seenFPs: new Set(),
+      });
+    }
+
+    // UI restore
+    const ui = payload.ui || {};
+    selectedLogin = ui.selectedLogin || "";
+    selectedChatKey = ui.selectedChatKey || "";
+    showOnlyNew = !!ui.showOnlyNew;
+    autoScroll = (ui.autoScroll !== false);
+
+    localStorage.setItem("selectedLogin", selectedLogin);
+    localStorage.setItem("selectedChatKey", selectedChatKey);
+    localStorage.setItem("showOnlyNew", showOnlyNew ? "1" : "0");
+    localStorage.setItem("autoScroll", autoScroll ? "1" : "0");
+
+    accountSelect.value = selectedLogin;
+    if (typeof ui.chatFilter === "string") chatFilterEl.value = ui.chatFilter;
+    if (typeof ui.chatSearch === "string") chatSearchEl.value = ui.chatSearch;
+
+    syncOnlyNewButton();
+    renderChatList();
+    renderActiveChat(true);
+
+    showNotification("Imported session JSON", "ok", 2000);
+  }
+
+  exportBtn.addEventListener("click", exportSession);
+
+  importBtn.addEventListener("click", () => importFile.click());
+
+  importFile.addEventListener("change", async () => {
+    const file = importFile.files && importFile.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const payload = JSON.parse(text);
+      importSessionFromObject(payload);
+    } catch (e) {
+      showNotification("Import failed: " + e.message, "err", 4000);
+    } finally {
+      importFile.value = "";
+    }
+  });
+
   // --------------------- WebSocket
   const wsProto = (location.protocol === "https:") ? "wss://" : "ws://";
   const ws = new WebSocket(`${wsProto}${location.host}/auth/ws/messages`);
@@ -1001,29 +1081,20 @@
     showNotification("WebSocket disconnected", "err", 2000);
   };
 
-  ws.onerror = () => {
-    setWsStatus("error");
-  };
+  ws.onerror = () => setWsStatus("error");
 
   ws.onmessage = (event) => {
-    // ВСЕГДА считаем входящий трафик (для session alive)
     lastTrafficAt = nowTs();
 
     let raw;
     try { raw = JSON.parse(event.data); }
-    catch(e){
-      console.debug('WS: JSON parse failed', e, event.data);
-      return;
-    }
+    catch(e){ return; }
 
     if (isPingLike(raw)) return;
 
     const n = normalizeIncoming(raw);
 
-    // chat_id обязателен — иначе это не чат
     if (n.chat_id == null || n.chat_id === "") return;
-
-    // ВАЖНО: не считаем сервисные/пустые события сообщениями
     if (!isRealMessage(n)) return;
 
     const key = chatKey(n.login_id, n.chat_id);
@@ -1032,16 +1103,10 @@
     const pushed = pushMessage(chat, n);
     if (!pushed) return;
 
-    // unread: увеличиваем только если это НЕ активный чат
     if (key !== selectedChatKey) chat.unread += 1;
 
     renderChatList();
-
-    if (key === selectedChatKey){
-      renderActiveChat(true);
-    } else {
-      if (!selectedChatKey) renderActiveChat(false);
-    }
+    if (key === selectedChatKey) renderActiveChat(true);
   };
 
   // --------------------- Session alive indicator
@@ -1055,8 +1120,6 @@
   setSelectedLogin(selectedLogin);
   refreshLogins();
   setInterval(refreshLogins, 5000);
-
-  if (selectedChatKey) renderActiveChat(false);
 
   renderChatList();
   renderActiveChat(false);
