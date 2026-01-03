@@ -224,6 +224,58 @@ async def start_listen(data: ListenRequest):
     return {"status": "ok"}
 
 
+@router.post("/wake")
+async def wake_session(data: ListenRequest):
+    """Attempt to (re)connect the Telegram client for a given login_id and
+    reattach message listener if it was previously started.
+
+    This is a lightweight utility for debugging/unsticking sessions that may
+    have dropped their connection or whose handlers were not attached after
+    a restart.
+    """
+    log.info(f"Wake request for {data.login_id}")
+
+    item = await state.get(data.login_id)
+    if not item:
+        log.warning("Login not found for wake")
+        raise HTTPException(status_code=404)
+
+    client = item.get("client")
+
+    # Try to ensure the client is connected
+    try:
+        if client and not getattr(client, "is_connected", False):
+            await client.connect()
+        elif not client:
+            # state.get should have created a client, but defensively try again
+            # (this will also store the runtime client in LoginState).
+            item = await state.get(data.login_id)
+            client = item.get("client")
+            if client and not getattr(client, "is_connected", False):
+                await client.connect()
+    except Exception as e:
+        log.error(f"Wake: failed to connect client for {data.login_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to connect client")
+
+    # Perform a light RPC to prime the connection (get_me is cheap)
+    try:
+        if client:
+            await client.get_me()
+    except Exception as e:
+        # don't fail the whole call; just log for debugging
+        log.debug(f"Wake: get_me failed for {data.login_id}: {e}")
+
+    # If listener was intended to be running but handler not present, reattach it
+    try:
+        if item.get("listener_started") and not item.get("listener_handler"):
+            handler = setup_message_listener(client, ws_manager, data.login_id)
+            item["listener_handler"] = handler
+    except Exception as e:
+        log.debug(f"Wake: failed to reattach listener for {data.login_id}: {e}")
+
+    return {"status": "ok"}
+
+
 class UnlistenRequest(BaseModel):
     login_id: str
 

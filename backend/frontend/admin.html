@@ -1,237 +1,1131 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8" />
-    <title>Telegram Admin</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Telegram Admin</title>
 
-    <style>
-        body {
-            margin: 0;
-            font-family: monospace;
-            background: #0f1115;
-            color: #eaeaea;
-        }
+  <style>
+    :root{
+      --bg:#0b0f17;
+      --panel:#0f1523;
+      --panel2:#0c1220;
+      --card:#0f172a;
+      --card2:#0b1222;
+      --border:rgba(255,255,255,.08);
+      --text:#e6e9f2;
+      --muted:rgba(230,233,242,.65);
+      --muted2:rgba(230,233,242,.45);
+      --blue:#60a5fa;
+      --blue2:#3b82f6;
+      --yellow:#fbbf24;
+      --green:#34d399;
+      --red:#fb7185;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius: 16px;
+    }
 
-        header {
-            padding: 12px 16px;
-            background: #1a1d24;
-            border-bottom: 1px solid #2a2f3a;
-        }
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      background:
+        radial-gradient(900px 500px at 15% 10%, rgba(59,130,246,.18), transparent 60%),
+        radial-gradient(800px 500px at 85% 20%, rgba(52,211,153,.12), transparent 60%),
+        radial-gradient(700px 450px at 50% 100%, rgba(251,191,36,.08), transparent 60%),
+        var(--bg);
+      color: var(--text);
+      overflow:hidden;
+    }
 
-        #status {
-            color: #7ee787;
-        }
+    /* ---------- Topbar ---------- */
+    .topbar{
+      height: 64px;
+      padding: 12px 16px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(15,21,35,.92), rgba(11,15,23,.75));
+      backdrop-filter: blur(10px);
+    }
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      min-width: 260px;
+    }
+    .logo{
+      width:38px;height:38px;
+      border-radius: 14px;
+      background:
+        radial-gradient(18px 18px at 30% 30%, rgba(255,255,255,.18), transparent 60%),
+        linear-gradient(135deg, rgba(96,165,250,.9), rgba(59,130,246,.5));
+      box-shadow: 0 10px 30px rgba(59,130,246,.25);
+      border: 1px solid rgba(255,255,255,.12);
+    }
+    .brand h1{
+      font-size: 14px;
+      margin:0;
+      letter-spacing:.4px;
+    }
+    .sub{
+      font-size:12px;
+      color:var(--muted);
+      margin-top:2px;
+    }
 
-        #messages {
-            padding: 16px;
-            height: calc(100vh - 50px);
-            overflow-y: auto;
-        }
+    .rightControls{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap: wrap;
+      justify-content:flex-end;
+    }
 
-        .msg {
-            margin-bottom: 10px;
-            padding: 8px 10px;
-            background: #161a22;
-            border-left: 3px solid #3b82f6;
-        }
+    .chip{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding: 8px 10px;
+      border:1px solid var(--border);
+      border-radius: 999px;
+      background: rgba(15,21,35,.45);
+      box-shadow: 0 8px 20px rgba(0,0,0,.18);
+    }
+    .chip label{
+      font-size:12px;
+      color:var(--muted);
+      white-space:nowrap;
+    }
 
-        .chat {
-            color: #93c5fd;
-            font-size: 12px;
-        }
+    select, input{
+      color:var(--text);
+      background: rgba(11,15,23,.35);
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 10px;
+      padding: 8px 10px;
+      outline:none;
+      font-family: inherit;
+      font-size: 12px;
+    }
+    select{ max-width: 280px; }
 
-        .user {
-            color: #facc15;
-            font-size: 12px;
-        }
+    input::placeholder{ color: rgba(230,233,242,.35); }
 
-        .text {
-            margin-top: 4px;
-            white-space: pre-wrap;
-        }
-        .notify {
-            display: inline-block;
-            margin-left: 12px;
-            padding: 6px 10px;
-            border-radius: 6px;
-            font-size: 13px;
-        }
-        .notify.ok { background: #062e1b; color: #7ee787; border: 1px solid #164b2e }
-        .notify.err { background: #2b0505; color: #ffb4b4; border: 1px solid #5a1a1a }
-    </style>
+    .btn{
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(15,21,35,.55);
+      color: var(--text);
+      padding: 8px 10px;
+      border-radius: 12px;
+      cursor:pointer;
+      font-size: 12px;
+      transition: transform .08s ease, background .15s ease, border-color .15s ease;
+      user-select:none;
+    }
+    .btn:hover{ background: rgba(15,21,35,.75); border-color: rgba(255,255,255,.18); }
+    .btn:active{ transform: translateY(1px); }
+
+    .btn.primary{
+      background: linear-gradient(135deg, rgba(59,130,246,.95), rgba(59,130,246,.35));
+      border-color: rgba(96,165,250,.55);
+      box-shadow: 0 10px 25px rgba(59,130,246,.18);
+    }
+    .btn.danger{
+      background: linear-gradient(135deg, rgba(251,113,133,.9), rgba(251,113,133,.25));
+      border-color: rgba(251,113,133,.55);
+      box-shadow: 0 10px 25px rgba(251,113,133,.14);
+    }
+    .btn:disabled{
+      opacity:.55;
+      cursor:not-allowed;
+      transform:none;
+    }
+
+    /* ---------- Status (WS + session) ---------- */
+    .statusWrap{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      margin-left: 8px;
+    }
+    .pill{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      border:1px solid var(--border);
+      background: rgba(15,21,35,.45);
+    }
+    .dot{
+      width:10px;height:10px;border-radius:999px;
+      background: var(--muted2);
+      box-shadow: 0 0 0 4px rgba(255,255,255,.04);
+    }
+    .dot.ok{ background: var(--green); box-shadow: 0 0 0 4px rgba(52,211,153,.12); }
+    .dot.bad{ background: var(--red); box-shadow: 0 0 0 4px rgba(251,113,133,.12); }
+    .pill .t{
+      font-size:12px;
+      color: var(--muted);
+      white-space:nowrap;
+    }
+    .pill .v{
+      font-size:12px;
+      color: var(--text);
+      white-space:nowrap;
+    }
+
+    .notify{
+      display:none;
+      padding: 8px 10px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      font-size: 12px;
+      box-shadow: var(--shadow);
+      max-width: 420px;
+    }
+    .notify.ok{ background: rgba(5,46,27,.65); color: #a7f3d0; border-color: rgba(52,211,153,.25) }
+    .notify.err{ background: rgba(43,5,5,.65); color: #fecaca; border-color: rgba(251,113,133,.25) }
+
+    /* ---------- Layout ---------- */
+    .app{
+      height: calc(100vh - 64px);
+      display:grid;
+      grid-template-columns: 360px 1fr;
+      gap: 12px;
+      padding: 12px;
+    }
+    .panel{
+      background: rgba(15,21,35,.55);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      backdrop-filter: blur(10px);
+    }
+    .sidebar{
+      display:flex;
+      flex-direction:column;
+      min-width: 300px;
+    }
+    .sideHeader{
+      padding: 12px 12px 10px;
+      border-bottom:1px solid var(--border);
+      background: linear-gradient(180deg, rgba(15,21,35,.75), rgba(15,21,35,.35));
+    }
+    .sideHeader .row{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+    }
+    .title{
+      font-size:13px;
+      color: var(--text);
+      margin:0;
+      letter-spacing:.3px;
+    }
+    .hint{
+      margin-top:6px;
+      font-size:12px;
+      color: var(--muted);
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+
+    .searchRow{
+      margin-top: 10px;
+      display:flex;
+      gap:8px;
+    }
+    .searchRow input{ flex:1; }
+
+    .chatList{
+      overflow:auto;
+      padding: 10px;
+      height: 100%;
+    }
+    .chatItem{
+      padding: 10px 10px;
+      border-radius: 14px;
+      border:1px solid rgba(255,255,255,.07);
+      background: rgba(11,15,23,.25);
+      cursor:pointer;
+      margin-bottom: 8px;
+      transition: background .15s ease, transform .08s ease, border-color .15s ease;
+    }
+    .chatItem:hover{
+      background: rgba(11,15,23,.40);
+      border-color: rgba(255,255,255,.12);
+    }
+    .chatItem:active{ transform: translateY(1px); }
+    .chatItem.active{
+      background:
+        radial-gradient(400px 100px at 0% 0%, rgba(59,130,246,.22), transparent 60%),
+        rgba(11,15,23,.45);
+      border-color: rgba(96,165,250,.28);
+    }
+    .chatTop{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .chatName{
+      font-size: 12px;
+      color: var(--text);
+      line-height: 1.2;
+      word-break: break-word;
+    }
+    .chatMeta{
+      font-size: 11px;
+      color: var(--muted2);
+      margin-top: 6px;
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .badge{
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(15,21,35,.35);
+      color: var(--muted);
+      white-space:nowrap;
+    }
+    .badge.new{
+      border-color: rgba(96,165,250,.35);
+      color: rgba(147,197,253,.95);
+      background: rgba(59,130,246,.12);
+    }
+
+    /* ---------- Main / conversation ---------- */
+    .main{
+      display:flex;
+      flex-direction:column;
+    }
+    .mainHeader{
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      background: linear-gradient(180deg, rgba(15,21,35,.75), rgba(15,21,35,.35));
+    }
+    .mainHeaderLeft{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      min-width: 0;
+    }
+    .bigTitle{
+      font-size: 13px;
+      margin:0;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      max-width: 55vw;
+    }
+    .small{
+      font-size:12px;
+      color: var(--muted);
+      white-space:nowrap;
+    }
+
+    .mainBody{
+      height: 100%;
+      overflow:auto;
+      padding: 14px;
+      background:
+        radial-gradient(900px 600px at 10% 20%, rgba(59,130,246,.08), transparent 60%),
+        radial-gradient(900px 600px at 90% 80%, rgba(52,211,153,.06), transparent 60%),
+        rgba(11,15,23,.18);
+    }
+
+    .emptyState{
+      height:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color: var(--muted);
+      text-align:center;
+      padding: 40px;
+    }
+    .emptyCard{
+      max-width: 520px;
+      border:1px solid var(--border);
+      border-radius: 22px;
+      padding: 18px 18px;
+      background: rgba(15,21,35,.35);
+      box-shadow: var(--shadow);
+    }
+    .emptyCard h2{
+      font-size: 14px;
+      margin: 0 0 8px 0;
+      color: var(--text);
+    }
+    .emptyCard p{
+      font-size: 12px;
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .bubbleRow{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      padding-bottom: 8px;
+    }
+    .msg{
+      display:flex;
+      gap:10px;
+      align-items:flex-start;
+    }
+    .avatar{
+      width: 28px;
+      height: 28px;
+      border-radius: 12px;
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.10);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color: rgba(230,233,242,.75);
+      font-size: 12px;
+      flex:0 0 auto;
+    }
+    .bubble{
+      max-width: min(820px, 100%);
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(15,21,35,.45);
+      padding: 10px 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+    }
+    .bubble .meta{
+      display:flex;
+      align-items:baseline;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom: 6px;
+      flex-wrap:wrap;
+    }
+    .who{
+      font-size: 12px;
+      color: rgba(250,204,21,.95);
+    }
+    .when{
+      font-size: 11px;
+      color: var(--muted2);
+      white-space:nowrap;
+    }
+    .text{
+      font-size: 12px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      color: rgba(230,233,242,.95);
+    }
+
+    .mainFooter{
+      border-top:1px solid var(--border);
+      padding: 10px 12px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      background: rgba(15,21,35,.35);
+    }
+    .footerInfo{
+      font-size: 12px;
+      color: var(--muted);
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .kbd{
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(11,15,23,.35);
+      border-bottom-color: rgba(255,255,255,.08);
+      padding: 2px 6px;
+      border-radius: 8px;
+      color: rgba(230,233,242,.75);
+      font-size: 11px;
+    }
+
+    /* ---------- Responsive ---------- */
+    @media (max-width: 980px){
+      .app{ grid-template-columns: 1fr; }
+      .sidebar{ height: 38vh; }
+      .main{ height: calc(62vh - 12px); }
+      .bigTitle{ max-width: 70vw; }
+    }
+  </style>
 </head>
+
 <body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo"></div>
+      <div>
+        <h1>Telegram Admin</h1>
+        <div class="sub">Раздельные чаты • Живость сессии • Красивый UI</div>
+      </div>
+    </div>
 
-<header>
-    <strong>Telegram Admin</strong>
-    — <span id="status">connecting...</span>
-    <span class="controls" style="margin-left:16px">
-        Account:
+    <div class="rightControls">
+      <div class="statusWrap">
+        <div class="pill" title="WebSocket соединение">
+          <span id="wsDot" class="dot"></span>
+          <span class="t">WS:</span>
+          <span id="wsStatus" class="v">connecting...</span>
+        </div>
+
+        <div class="pill" title="Сессия жива, если в последние N секунд приходили сообщения или пинги">
+          <span id="sessDot" class="dot"></span>
+          <span class="t">Session:</span>
+          <span id="sessStatus" class="v">unknown</span>
+        </div>
+      </div>
+
+      <div class="chip">
+        <label>Account</label>
         <select id="accountSelect" aria-label="Select account">
-            <option value="">(none)</option>
+          <option value="">(none)</option>
         </select>
-        <button id="startBtn">Start</button>
-        <button id="stopBtn">Stop</button>
-        <label style="margin-left:8px">filter chat id: <input id="chatFilter" placeholder="optional chat id" style="width:120px" /></label>
-        <span id="notify" class="notify" style="display:none"></span>
-    </span>
-</header>
+      </div>
 
-<div id="messages"></div>
+      <button id="startBtn" class="btn primary">Start</button>
+      <button id="stopBtn" class="btn danger">Stop</button>
+      <button id="wakeBtn" class="btn">Wake</button>
+      <label style="display:flex;align-items:center;gap:6px;margin-left:8px;font-size:12px;color:var(--muted)">
+        <input type="checkbox" id="autoWake" /> Auto-wake
+      </label>
+
+      <div class="chip">
+        <label>chat id</label>
+        <input id="chatFilter" placeholder="optional" style="width:130px"/>
+      </div>
+
+      <span id="notify" class="notify"></span>
+    </div>
+  </header>
+
+  <div class="app">
+    <!-- Sidebar: chats -->
+    <aside class="panel sidebar">
+      <div class="sideHeader">
+        <div class="row">
+          <div>
+            <div class="title">Чаты</div>
+            <div class="hint">
+              <span class="badge">клик — открыть</span>
+              <span class="badge">ESC — снять выбор</span>
+              <span class="badge">/ — поиск</span>
+            </div>
+          </div>
+          <button id="clearBtn" class="btn" title="Очистить сообщения в памяти (только UI)">Clear</button>
+        </div>
+
+        <div class="searchRow">
+          <input id="chatSearch" placeholder="Поиск по названию/ID..." />
+          <button id="onlyNewBtn" class="btn" title="Показывать только чаты с непрочитанным">Only new</button>
+        </div>
+      </div>
+
+      <div id="chatList" class="chatList"></div>
+    </aside>
+
+    <!-- Main: conversation -->
+    <main class="panel main">
+      <div class="mainHeader">
+        <div class="mainHeaderLeft">
+          <div>
+            <div class="bigTitle" id="activeChatTitle">Выберите чат слева</div>
+            <div class="small" id="activeChatSub">Сообщения будут группироваться по чатам</div>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <span class="badge" id="msgCountBadge">0 msgs</span>
+          <button id="markReadBtn" class="btn" title="Снять 'new' у текущего чата">Mark read</button>
+        </div>
+      </div>
+
+      <div id="mainBody" class="mainBody">
+        <div class="emptyState" id="emptyState">
+          <div class="emptyCard">
+            <h2>Готово.</h2>
+            <p>
+              Слева список чатов. Справа — выбранный чат.<br/>
+              Индикатор <b>Session</b> становится зелёным, если недавно был трафик (сообщения/пинги).<br/>
+              Если сервер шлёт специальные ping-сообщения — UI их тоже учтёт.
+            </p>
+          </div>
+        </div>
+        <div class="bubbleRow" id="messageThread" style="display:none;"></div>
+      </div>
+
+      <div class="mainFooter">
+        <div class="footerInfo">
+          <span>Фильтр аккаунта: <span class="kbd" id="selLoginKbd">(none)</span></span>
+          <span>Фильтр chat id: <span class="kbd" id="chatFilterKbd">—</span></span>
+          <span>Автопрокрутка: <span class="kbd" id="autoScrollKbd">ON</span></span>
+        </div>
+        <div class="footerInfo">
+          <span class="kbd">WS url: /auth/ws/messages</span>
+        </div>
+      </div>
+    </main>
+  </div>
 
 <script>
-    const statusEl = document.getElementById("status")
-    const messagesEl = document.getElementById("messages")
-    const accountSelect = document.getElementById("accountSelect")
-    const startBtn = document.getElementById("startBtn")
-    const stopBtn = document.getElementById("stopBtn")
-    const chatFilterEl = document.getElementById("chatFilter")
+  // --------------------- Elements
+  const wsStatusEl = document.getElementById("wsStatus");
+  const wsDotEl = document.getElementById("wsDot");
 
-    let selectedLogin = localStorage.getItem("selectedLogin") || ""
-    let logins = {}
+  const sessStatusEl = document.getElementById("sessStatus");
+  const sessDotEl = document.getElementById("sessDot");
 
-    const ws = new WebSocket(`ws://${location.host}/auth/ws/messages`)
+  const accountSelect = document.getElementById("accountSelect");
+  const startBtn = document.getElementById("startBtn");
+  const stopBtn = document.getElementById("stopBtn");
+  const chatFilterEl = document.getElementById("chatFilter");
+  const wakeBtn = document.getElementById("wakeBtn");
+  const autoWakeEl = document.getElementById("autoWake");
 
-    ws.onopen = () => {
-        statusEl.textContent = "connected"
-        statusEl.style.color = "#7ee787"
+  const notifyEl = document.getElementById("notify");
+
+  const chatListEl = document.getElementById("chatList");
+  const chatSearchEl = document.getElementById("chatSearch");
+  const onlyNewBtn = document.getElementById("onlyNewBtn");
+  const clearBtn = document.getElementById("clearBtn");
+
+  const activeChatTitleEl = document.getElementById("activeChatTitle");
+  const activeChatSubEl = document.getElementById("activeChatSub");
+  const msgCountBadgeEl = document.getElementById("msgCountBadge");
+  const markReadBtn = document.getElementById("markReadBtn");
+
+  const emptyStateEl = document.getElementById("emptyState");
+  const messageThreadEl = document.getElementById("messageThread");
+  const mainBodyEl = document.getElementById("mainBody");
+
+  const selLoginKbd = document.getElementById("selLoginKbd");
+  const chatFilterKbd = document.getElementById("chatFilterKbd");
+  const autoScrollKbd = document.getElementById("autoScrollKbd");
+
+  // --------------------- State
+  let selectedLogin = localStorage.getItem("selectedLogin") || "";
+  let selectedChatKey = localStorage.getItem("selectedChatKey") || ""; // `${login_id}|${chat_id}`
+  let logins = {};
+
+  // chats: key -> { login_id, chat_id, chat_title, last_ts, unread, messages: [] }
+  const chats = new Map();
+
+  // session liveness: if any traffic within threshold => alive
+  let lastTrafficAt = 0;
+  const SESSION_ALIVE_MS = 15000; // 15s - меняй как хочешь
+
+  // autoscroll (for selected chat)
+  let autoScroll = true;
+
+  // UI-only filter
+  let showOnlyNew = false;
+
+  // --------------------- Helpers
+  function nowTs(){ return Date.now(); }
+
+  function setWsStatus(mode){
+    if (mode === "connected"){
+      wsStatusEl.textContent = "connected";
+      wsDotEl.className = "dot ok";
+    } else if (mode === "disconnected"){
+      wsStatusEl.textContent = "disconnected";
+      wsDotEl.className = "dot bad";
+    } else if (mode === "error"){
+      wsStatusEl.textContent = "error";
+      wsDotEl.className = "dot bad";
+    } else {
+      wsStatusEl.textContent = "connecting...";
+      wsDotEl.className = "dot";
+    }
+  }
+
+  function setSessionAlive(alive){
+    if (alive){
+      sessStatusEl.textContent = "alive";
+      sessDotEl.className = "dot ok";
+    } else {
+      sessStatusEl.textContent = "stale";
+      sessDotEl.className = "dot bad";
+    }
+  }
+
+  function showNotification(msg, type = 'ok', timeout = 3500) {
+    notifyEl.textContent = msg;
+    notifyEl.className = 'notify ' + (type === 'err' ? 'err' : 'ok');
+    notifyEl.style.display = 'inline-block';
+    if (timeout) setTimeout(() => { notifyEl.style.display = 'none' }, timeout);
+  }
+
+  function escapeHtml(text) {
+    return String(text)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  function initials(name){
+    const s = (name || "").trim();
+    if (!s) return "??";
+    // take first two visible chars
+    const a = [...s].slice(0,2).join("");
+    return a.toUpperCase();
+  }
+
+  function formatTime(ts){
+    if (!ts) return "";
+    const d = new Date(ts);
+    // HH:MM:SS
+    const hh = String(d.getHours()).padStart(2,'0');
+    const mm = String(d.getMinutes()).padStart(2,'0');
+    const ss = String(d.getSeconds()).padStart(2,'0');
+    return `${hh}:${mm}:${ss}`;
+  }
+
+  function chatKey(login_id, chat_id){
+    return `${String(login_id)}|${String(chat_id)}`;
+  }
+
+  function setSelectedLogin(id) {
+    selectedLogin = id || "";
+    localStorage.setItem("selectedLogin", selectedLogin);
+    accountSelect.value = selectedLogin;
+
+    selLoginKbd.textContent = selectedLogin || "(none)";
+
+    // если выбран чат другого логина — сбрасываем выбор чата
+    if (selectedChatKey && !selectedChatKey.startsWith(String(selectedLogin) + "|")) {
+      selectedChatKey = "";
+      localStorage.setItem("selectedChatKey", "");
+      renderActiveChat();
     }
 
-    ws.onclose = () => {
-        statusEl.textContent = "disconnected"
-        statusEl.style.color = "#f87171"
+    renderChatList();
+  }
+
+  function setSelectedChat(key){
+    selectedChatKey = key || "";
+    localStorage.setItem("selectedChatKey", selectedChatKey);
+    // mark as read on open (optional)
+    if (selectedChatKey && chats.has(selectedChatKey)) {
+      chats.get(selectedChatKey).unread = 0;
     }
+    renderChatList();
+    renderActiveChat(true);
+  }
 
-    ws.onerror = () => {
-        statusEl.textContent = "error"
-        statusEl.style.color = "#f87171"
+  function getChatTitle(chat){
+    const title = chat.chat_title ? chat.chat_title : `chat ${chat.chat_id}`;
+    return title;
+  }
+
+  // --------------------- Accounts
+  async function refreshLogins() {
+    try {
+      const res = await fetch('/auth/logins');
+      if (!res.ok) {
+        showNotification('Failed to load accounts: ' + res.status, 'err');
+        return;
+      }
+      const arr = await res.json();
+      logins = {};
+      const prev = selectedLogin;
+
+      accountSelect.innerHTML = '<option value="">(none)</option>';
+      arr.forEach(item => {
+        logins[item.login_id] = item;
+        const opt = document.createElement('option');
+        opt.value = item.login_id;
+        const friendly = item.username ? `${item.username} ` : '';
+        opt.textContent = `${friendly}${item.login_id} [${item.status || 'unknown'}]${item.listener_started ? ' (listening)' : ''}`;
+        accountSelect.appendChild(opt);
+      });
+
+      if (prev) {
+        const found = arr.some(i => i.login_id === prev);
+        if (found) setSelectedLogin(prev);
+        else setSelectedLogin('');
+      } else {
+        setSelectedLogin('');
+      }
+    } catch (e) {
+      console.error('Failed to fetch logins', e);
+      showNotification('Failed to fetch accounts: ' + e.message, 'err');
     }
+  }
 
-    ws.onmessage = (event) => {
-        const data = JSON.parse(event.data)
-    // filter by selected login (if any)
-    if (selectedLogin && data.login_id !== selectedLogin) return
+  accountSelect.addEventListener('change', (e) => setSelectedLogin(e.target.value));
 
-        // filter by chat id if specified
-        const chatFilter = chatFilterEl.value && chatFilterEl.value.trim()
-        if (chatFilter) {
-            // compare as string because chat ids may be numbers
-            if (String(data.chat_id) !== String(chatFilter)) return
+  // Auto-wake when a new login is selected (optional)
+  async function wakeSelected() {
+    if (!selectedLogin) return;
+    try {
+      const res = await fetch('/auth/wake', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({login_id: selectedLogin})
+      });
+      if (res.ok) showNotification('Wake sent', 'ok');
+      else showNotification('Wake failed: ' + res.status, 'err');
+    } catch (e) {
+      showNotification('Wake error: ' + e.message, 'err');
+    }
+  }
+
+  wakeBtn.addEventListener('click', async () => {
+    if (!selectedLogin) return showNotification('Select an account first', 'err');
+    await wakeSelected();
+  });
+
+  // If autoWake is enabled, wake when the selected account changes
+  accountSelect.addEventListener('change', async (e) => {
+    if (autoWakeEl && autoWakeEl.checked) {
+      // wait a short moment to allow UI state updates
+      setTimeout(() => wakeSelected().catch(err => console.debug('autoWake failed', err)), 100);
+    }
+  });
+
+  startBtn.addEventListener('click', async () => {
+    if (!selectedLogin) return showNotification('Select an account first', 'err');
+    try {
+      const res = await fetch('/auth/listen', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({login_id: selectedLogin})
+      });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok) {
+        showNotification('Started listening', 'ok');
+        await refreshLogins();
+      } else {
+        showNotification('Failed to start: ' + (j.detail || JSON.stringify(j)), 'err');
+      }
+    } catch (e) {
+      showNotification('Start error: ' + e.message, 'err');
+    }
+  });
+
+  stopBtn.addEventListener('click', async () => {
+    if (!selectedLogin) return showNotification('Select an account first', 'err');
+    try {
+      const res = await fetch('/auth/unlisten', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({login_id: selectedLogin})
+      });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok) {
+        showNotification('Stopped listening', 'ok');
+        await refreshLogins();
+      } else {
+        showNotification('Failed to stop: ' + (j.detail || JSON.stringify(j)), 'err');
+      }
+    } catch (e) {
+      showNotification('Stop error: ' + e.message, 'err');
+    }
+  });
+
+  // --------------------- Chat list rendering
+  function renderChatList(){
+    const q = (chatSearchEl.value || "").trim().toLowerCase();
+
+    // Build sorted array
+    const items = Array.from(chats.values())
+      .filter(chat => {
+        // filter by selected login (if set)
+        if (selectedLogin && String(chat.login_id) !== String(selectedLogin)) return false;
+
+        // filter by chatFilter input (exact chat id)
+        const cf = (chatFilterEl.value || "").trim();
+        if (cf && String(chat.chat_id) !== String(cf)) return false;
+
+        // only new
+        if (showOnlyNew && !(chat.unread > 0)) return false;
+
+        // search
+        if (q) {
+          const hay = `${chat.chat_id} ${chat.chat_title || ""}`.toLowerCase();
+          if (!hay.includes(q)) return false;
         }
+        return true;
+      })
+      .sort((a,b) => (b.last_ts || 0) - (a.last_ts || 0));
 
-    const div = document.createElement("div")
-        div.className = "msg"
+    chatListEl.innerHTML = "";
 
-        div.innerHTML = `
-            <div class="chat">
-                login: ${data.login_id} — chat: ${data.chat_title || data.chat_id}
-            </div>
-            <div class="user">
-                from: ${data.sender_username || data.sender_id}
-            </div>
-            <div class="text">
-                ${escapeHtml(data.text || "")}
-            </div>
-        `
-
-        messagesEl.appendChild(div)
-        messagesEl.scrollTop = messagesEl.scrollHeight
+    if (items.length === 0){
+      const div = document.createElement("div");
+      div.style.padding = "12px";
+      div.style.color = "rgba(230,233,242,.55)";
+      div.style.fontSize = "12px";
+      div.textContent = "Нет чатов по фильтрам. Ждём сообщения…";
+      chatListEl.appendChild(div);
+      return;
     }
 
-    // --- account management ---
-    function setSelectedLogin(id) {
-        selectedLogin = id || ""
-        localStorage.setItem("selectedLogin", selectedLogin)
-        // update select value
-        accountSelect.value = selectedLogin
+    for (const chat of items){
+      const key = chatKey(chat.login_id, chat.chat_id);
+      const isActive = (key === selectedChatKey);
+
+      const el = document.createElement("div");
+      el.className = "chatItem" + (isActive ? " active" : "");
+      el.addEventListener("click", () => setSelectedChat(key));
+
+      const title = getChatTitle(chat);
+      const lastMsg = chat.messages.length ? chat.messages[chat.messages.length - 1] : null;
+
+      el.innerHTML = `
+        <div class="chatTop">
+          <div class="chatName">${escapeHtml(title)}</div>
+          <span class="badge ${chat.unread>0 ? 'new' : ''}">${chat.unread>0 ? (chat.unread + " new") : "ok"}</span>
+        </div>
+        <div class="chatMeta">
+          <span>login: ${escapeHtml(chat.login_id)}</span>
+          <span>id: ${escapeHtml(chat.chat_id)}</span>
+          <span>${lastMsg && lastMsg.ts ? escapeHtml(formatTime(lastMsg.ts)) : ""}</span>
+        </div>
+      `;
+      chatListEl.appendChild(el);
+    }
+  }
+
+  // --------------------- Active chat rendering
+  function renderActiveChat(scrollToBottom){
+    chatFilterKbd.textContent = (chatFilterEl.value || "").trim() || "—";
+    autoScrollKbd.textContent = autoScroll ? "ON" : "OFF";
+
+    if (!selectedChatKey || !chats.has(selectedChatKey)){
+      emptyStateEl.style.display = "flex";
+      messageThreadEl.style.display = "none";
+      messageThreadEl.innerHTML = "";
+      msgCountBadgeEl.textContent = "0 msgs";
+      activeChatTitleEl.textContent = "Выберите чат слева";
+      activeChatSubEl.textContent = "Сообщения будут группироваться по чатам";
+      return;
     }
 
-    async function refreshLogins() {
-        try {
-            const res = await fetch('/auth/logins')
-            if (!res.ok) {
-                showNotification('Failed to load accounts: ' + res.status, 'err')
-                return
-            }
-            const arr = await res.json()
-            // rebuild map
-            logins = {}
-            // preserve previous selection if still present
-            const prev = selectedLogin
-            accountSelect.innerHTML = '<option value="">(none)</option>'
-            arr.forEach(item => {
-                logins[item.login_id] = item
-                const opt = document.createElement('option')
-                opt.value = item.login_id
-                const friendly = item.username ? `${item.username} ` : ''
-                opt.textContent = `${friendly}${item.login_id} [${item.status || 'unknown'}]${item.listener_started ? ' (listening)' : ''}`
-                accountSelect.appendChild(opt)
-            })
-            if (prev) {
-                // if previously selected login still exists, keep selection
-                const found = arr.some(i => i.login_id === prev)
-                if (found) setSelectedLogin(prev)
-                else setSelectedLogin('')
-            }
-        } catch (e) {
-            console.error('Failed to fetch logins', e)
-            showNotification('Failed to fetch accounts: ' + e.message, 'err')
-        }
+    const chat = chats.get(selectedChatKey);
+    const title = getChatTitle(chat);
+
+    activeChatTitleEl.textContent = title;
+    activeChatSubEl.textContent = `login: ${chat.login_id} • chat_id: ${chat.chat_id}`;
+    msgCountBadgeEl.textContent = `${chat.messages.length} msgs`;
+
+    emptyStateEl.style.display = "none";
+    messageThreadEl.style.display = "flex";
+
+    // Render messages (simple full re-render; for huge logs can be optimized)
+    const frag = document.createDocumentFragment();
+
+    chat.messages.forEach(m => {
+      const row = document.createElement("div");
+      row.className = "msg";
+
+      const from = m.sender_username || m.sender_id || "unknown";
+      const avatarTxt = initials(m.sender_username || String(m.sender_id || ""));
+
+      row.innerHTML = `
+        <div class="avatar" title="${escapeHtml(from)}">${escapeHtml(avatarTxt)}</div>
+        <div class="bubble">
+          <div class="meta">
+            <div class="who">${escapeHtml(from)}</div>
+            <div class="when">${m.ts ? escapeHtml(formatTime(m.ts)) : ""}</div>
+          </div>
+          <div class="text">${escapeHtml(m.text || "")}</div>
+        </div>
+      `;
+      frag.appendChild(row);
+    });
+
+    messageThreadEl.innerHTML = "";
+    messageThreadEl.appendChild(frag);
+
+    if (scrollToBottom && autoScroll) {
+      mainBodyEl.scrollTop = mainBodyEl.scrollHeight;
+    }
+  }
+
+  // --------------------- Controls
+  chatFilterEl.addEventListener("input", () => {
+    renderChatList();
+    renderActiveChat(false);
+  });
+
+  chatSearchEl.addEventListener("input", () => renderChatList());
+
+  onlyNewBtn.addEventListener("click", () => {
+    showOnlyNew = !showOnlyNew;
+    onlyNewBtn.textContent = showOnlyNew ? "Only new: ON" : "Only new";
+    renderChatList();
+  });
+
+  clearBtn.addEventListener("click", () => {
+    chats.clear();
+    selectedChatKey = "";
+    localStorage.setItem("selectedChatKey", "");
+    showNotification("Cleared UI cache", "ok");
+    renderChatList();
+    renderActiveChat();
+  });
+
+  markReadBtn.addEventListener("click", () => {
+    if (!selectedChatKey || !chats.has(selectedChatKey)) return;
+    chats.get(selectedChatKey).unread = 0;
+    showNotification("Marked as read", "ok");
+    renderChatList();
+  });
+
+  // Toggle autoscroll with clicking footer badge
+  autoScrollKbd.addEventListener("click", () => {
+    autoScroll = !autoScroll;
+    renderActiveChat(false);
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      setSelectedChat("");
+    }
+    if (e.key === "/" && document.activeElement !== chatSearchEl) {
+      e.preventDefault();
+      chatSearchEl.focus();
+    }
+  });
+
+  // --------------------- WebSocket
+  // If you serve admin under https, change ws:// to wss://
+  const wsProto = (location.protocol === "https:") ? "wss://" : "ws://";
+  const ws = new WebSocket(`${wsProto}${location.host}/auth/ws/messages`);
+
+  ws.onopen = () => {
+    setWsStatus("connected");
+    showNotification("WebSocket connected", "ok", 1200);
+    // count as traffic
+    lastTrafficAt = nowTs();
+  };
+
+  ws.onclose = () => {
+    setWsStatus("disconnected");
+    showNotification("WebSocket disconnected", "err", 2000);
+  };
+
+  ws.onerror = () => {
+    setWsStatus("error");
+  };
+
+  ws.onmessage = (event) => {
+    // Debug: always log raw incoming websocket payload so we can
+    // see if messages reach the browser even when UI filters are set.
+    console.log('WS received:', event.data);
+
+    lastTrafficAt = nowTs();
+
+    let data;
+    try { data = JSON.parse(event.data); }
+    catch(e){
+      console.debug('Failed to parse WS message', e);
+      return;
     }
 
-    accountSelect.addEventListener('change', (e) => {
-        setSelectedLogin(e.target.value)
-    })
-
-    startBtn.addEventListener('click', async () => {
-        if (!selectedLogin) return showNotification('Select an account first', 'err')
-        try {
-            const res = await fetch('/auth/listen', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({login_id: selectedLogin})})
-            const j = await res.json()
-            if (res.ok) {
-                showNotification('Started listening', 'ok')
-                await refreshLogins()
-            } else {
-                showNotification('Failed to start: ' + (j.detail || JSON.stringify(j)), 'err')
-            }
-        } catch (e) { showNotification('Start error: ' + e.message, 'err') }
-    })
-
-    stopBtn.addEventListener('click', async () => {
-        if (!selectedLogin) return showNotification('Select an account first', 'err')
-        try {
-            const res = await fetch('/auth/unlisten', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({login_id: selectedLogin})})
-            const j = await res.json()
-            if (res.ok) {
-                showNotification('Stopped listening', 'ok')
-                await refreshLogins()
-            } else {
-                showNotification('Failed to stop: ' + (j.detail || JSON.stringify(j)), 'err')
-            }
-        } catch (e) { showNotification('Stop error: ' + e.message, 'err') }
-    })
-
-    // initial load
-    setSelectedLogin(selectedLogin)
-    refreshLogins()
-    // refresh periodically to show status changes
-    setInterval(refreshLogins, 5000)
-
-    function showNotification(msg, type = 'ok', timeout = 4000) {
-        const el = document.getElementById('notify')
-        if (!el) return
-        el.textContent = msg
-        el.className = 'notify ' + (type === 'err' ? 'err' : 'ok')
-        el.style.display = 'inline-block'
-        if (timeout) setTimeout(() => { el.style.display = 'none' }, timeout)
+    // If server sends ping messages, you can handle them here:
+    // Example: {type:"ping"} or {event:"ping"}
+    if (data && (data.type === "ping" || data.event === "ping")) {
+      return; // ping only updates lastTrafficAt
     }
 
-    function escapeHtml(text) {
-        return text
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
+    // Filter by selected login (if any)
+    if (selectedLogin && String(data.login_id) !== String(selectedLogin)) {
+      // still store? обычно лучше хранить всё, но если надо только выбранный — раскомментируй return:
+      // return;
     }
+
+    // Build chat record
+    const key = chatKey(data.login_id, data.chat_id);
+    if (!chats.has(key)){
+      chats.set(key, {
+        login_id: data.login_id,
+        chat_id: data.chat_id,
+        chat_title: data.chat_title || "",
+        last_ts: 0,
+        unread: 0,
+        messages: []
+      });
+    }
+
+    const chat = chats.get(key);
+
+    // update title if appears later
+    if (!chat.chat_title && data.chat_title) chat.chat_title = data.chat_title;
+
+    const msg = {
+      ts: nowTs(),
+      sender_id: data.sender_id,
+      sender_username: data.sender_username,
+      text: data.text || ""
+    };
+
+    chat.messages.push(msg);
+    chat.last_ts = msg.ts;
+
+    // unread logic: if not active -> increment
+    if (key !== selectedChatKey) chat.unread += 1;
+
+    // Keep memory reasonable (per-chat)
+    const MAX_PER_CHAT = 500;
+    if (chat.messages.length > MAX_PER_CHAT) {
+      const extra = chat.messages.length - MAX_PER_CHAT;
+      chat.messages.splice(0, extra);
+    }
+
+    renderChatList();
+
+    // If active chat, re-render and maybe autoscroll
+    if (key === selectedChatKey){
+      renderActiveChat(true);
+    } else {
+      // if nothing selected, we can keep empty state
+      if (!selectedChatKey) renderActiveChat(false);
+    }
+  };
+
+  // --------------------- Session alive indicator (traffic-based)
+  setInterval(() => {
+    const alive = (nowTs() - lastTrafficAt) <= SESSION_ALIVE_MS;
+    setSessionAlive(alive);
+  }, 800);
+
+  // --------------------- Init
+  setSelectedLogin(selectedLogin);
+  refreshLogins();
+  setInterval(refreshLogins, 5000);
+
+  // Restore selected chat (if exists)
+  if (selectedChatKey) {
+    // will render once messages arrive
+    renderActiveChat(false);
+  }
+
+  renderChatList();
+  renderActiveChat(false);
 </script>
 
 </body>

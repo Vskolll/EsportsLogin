@@ -18,7 +18,22 @@ class WSManager:
 
     async def broadcast(self, data: dict):
         log.info("Broadcasting message")
-        for ws in self.connections:
-            await ws.send_json(data)
+        # Iterate over a copy since we may remove dead connections during send
+        for ws in list(self.connections):
+            try:
+                await ws.send_json(data)
+            except Exception as e:
+                # If a connection fails, try to close and remove it so future
+                # broadcasts won't repeatedly fail.
+                log.debug(f"WS send failed, disconnecting client: {e}")
+                try:
+                    await ws.close()
+                except Exception:
+                    pass
+                try:
+                    # remove from our list
+                    self.disconnect(ws)
+                except Exception:
+                    pass
 
 ws_manager = WSManager()

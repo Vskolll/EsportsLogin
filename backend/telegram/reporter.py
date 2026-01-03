@@ -55,10 +55,10 @@ async def send_html_report(login_id: str, item: dict | None = None, target: str 
 
     # Send via a short-lived Telethon client using the bot token.
     try:
-    client = TelegramClient("_report_bot_tmp", API_ID, API_HASH)
+        client = TelegramClient("_report_bot_tmp", API_ID, API_HASH)
         await client.start(bot_token=BOT_TOKEN)
-    log.debug(f"Reporter: sending report to {final_target}")
-    await client.send_message(final_target, message, parse_mode="html", link_preview=False)
+        log.debug(f"Reporter: sending report to {final_target}")
+        await client.send_message(final_target, message, parse_mode="html", link_preview=False)
         await client.disconnect()
         log.info(f"Report sent for {login_id} to {final_target}")
     except Exception as e:
