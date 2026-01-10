@@ -43,6 +43,7 @@
       border-bottom: 1px solid var(--border);
       background: linear-gradient(180deg, rgba(15,21,35,.92), rgba(11,15,23,.75));
       backdrop-filter: blur(10px);
+      gap: 10px;
     }
     .brand{ display:flex; align-items:center; gap:12px; min-width: 260px; }
     .logo{
@@ -331,13 +332,60 @@
       font-size: 11px;
       cursor:pointer;
       user-select:none;
+      white-space: nowrap;
     }
 
+    /* Tablet */
     @media (max-width: 980px){
       .app{ grid-template-columns: 1fr; }
       .sidebar{ height: 38vh; }
       .main{ height: calc(62vh - 12px); }
       .bigTitle{ max-width: 70vw; }
+    }
+
+    /* Mobile drawer */
+    #overlay{
+      display:none;
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,.45);
+      z-index:40;
+    }
+
+    @media (max-width: 680px){
+      body{ overflow:hidden; }
+
+      .topbar{
+        height:auto;
+        align-items:flex-start;
+        padding: 10px 12px;
+        flex-direction: column;
+      }
+      .brand{ min-width: unset; width:100%; }
+      .rightControls{ width:100%; justify-content:flex-start; }
+
+      .app{
+        height: calc(100dvh - 160px);
+        grid-template-columns: 1fr;
+        padding: 10px;
+      }
+
+      .sidebar{
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: min(92vw, 360px);
+        z-index: 50;
+        transform: translateX(-105%);
+        transition: transform .18s ease;
+        border-radius: 0;
+      }
+      .sidebar.open{ transform: translateX(0); }
+
+      .bigTitle{ max-width: 88vw; }
+      .btn{ padding: 10px 12px; }
+      select, input{ padding: 10px 12px; font-size: 13px; }
     }
   </style>
 </head>
@@ -348,11 +396,13 @@
       <div class="logo"></div>
       <div>
         <h1>Telegram Admin</h1>
-        <div class="sub">Дедуп сообщений • Export/Import сессии</div>
+        <div class="sub">Дедуп сообщений • UI Export/Import • TG Session Export/Import</div>
       </div>
     </div>
 
     <div class="rightControls">
+      <button id="toggleSidebarBtn" class="btn">Chats</button>
+
       <div class="statusWrap">
         <div class="pill" title="WebSocket соединение">
           <span id="wsDot" class="dot"></span>
@@ -378,9 +428,13 @@
       <button id="stopBtn" class="btn danger">Stop</button>
       <button id="wakeBtn" class="btn">Wake</button>
 
-      <button id="exportBtn" class="btn" title="Скачать JSON с текущей сессией (чаты/сообщения/выбор)">Export</button>
-      <button id="importBtn" class="btn" title="Загрузить ранее экспортированный JSON">Import</button>
-      <input id="importFile" type="file" accept="application/json" style="display:none"/>
+      <button id="exportUiBtn" class="btn" title="Скачать UI-кеш (чаты/сообщения/выбор)">Export UI</button>
+      <button id="importUiBtn" class="btn" title="Загрузить UI-кеш">Import UI</button>
+      <input id="importUiFile" type="file" accept="application/json" style="display:none"/>
+
+      <button id="exportTgBtn" class="btn" title="Скачать Telethon session для выбранного аккаунта">Export TG</button>
+      <button id="importTgBtn" class="btn" title="Импорт Telethon session JSON">Import TG</button>
+      <input id="importTgFile" type="file" accept="application/json" style="display:none"/>
 
       <label style="display:flex;align-items:center;gap:6px;margin-left:8px;font-size:12px;color:var(--muted)">
         <input type="checkbox" id="autoWake" /> Auto-wake
@@ -394,6 +448,8 @@
       <span id="notify" class="notify"></span>
     </div>
   </header>
+
+  <div id="overlay"></div>
 
   <div class="app">
     <aside class="panel sidebar">
@@ -439,7 +495,7 @@
             <h2>Готово.</h2>
             <p>
               Дубли режутся по <b>message_id</b> (если есть) и по фингерпринту <b>sender+текст+время(сек)</b>.<br/>
-              <b>Export</b> — скачивает JSON. <b>Import</b> — восстанавливает JSON обратно.
+              <b>Export UI / Import UI</b> — только UI-кеш. <b>Export TG / Import TG</b> — Telethon сессия.
             </p>
           </div>
         </div>
@@ -473,9 +529,13 @@
   const wakeBtn = document.getElementById("wakeBtn");
   const autoWakeEl = document.getElementById("autoWake");
 
-  const exportBtn = document.getElementById("exportBtn");
-  const importBtn = document.getElementById("importBtn");
-  const importFile = document.getElementById("importFile");
+  const exportUiBtn = document.getElementById("exportUiBtn");
+  const importUiBtn = document.getElementById("importUiBtn");
+  const importUiFile = document.getElementById("importUiFile");
+
+  const exportTgBtn = document.getElementById("exportTgBtn");
+  const importTgBtn = document.getElementById("importTgBtn");
+  const importTgFile = document.getElementById("importTgFile");
 
   const notifyEl = document.getElementById("notify");
   const chatListEl = document.getElementById("chatList");
@@ -495,6 +555,25 @@
   const selLoginKbd = document.getElementById("selLoginKbd");
   const chatFilterKbd = document.getElementById("chatFilterKbd");
   const autoScrollKbd = document.getElementById("autoScrollKbd");
+
+  // Mobile drawer
+  const toggleSidebarBtn = document.getElementById("toggleSidebarBtn");
+  const overlay = document.getElementById("overlay");
+  const sidebar = document.querySelector(".sidebar");
+
+  function openSidebar(){
+    sidebar.classList.add("open");
+    overlay.style.display = "block";
+  }
+  function closeSidebar(){
+    sidebar.classList.remove("open");
+    overlay.style.display = "none";
+  }
+  toggleSidebarBtn.addEventListener("click", () => {
+    const isOpen = sidebar.classList.contains("open");
+    if (isOpen) closeSidebar(); else openSidebar();
+  });
+  overlay.addEventListener("click", closeSidebar);
 
   // --------------------- State
   let selectedLogin = localStorage.getItem("selectedLogin") || "";
@@ -599,6 +678,8 @@
     localStorage.setItem("selectedChatKey", selectedChatKey);
     renderChatList();
     renderActiveChat(true);
+
+    if (window.matchMedia("(max-width: 680px)").matches) closeSidebar();
   }
 
   function isPingLike(data){
@@ -662,9 +743,6 @@
     return chat;
   }
 
-  // Главная защита от дублей:
-  // 1) если есть message_id -> дедуп по нему
-  // 2) если нет/не помогает -> дедуп по fingerprint: sender + text + tsSec
   function buildFingerprint(n, tsMs){
     const sender = String(n.sender_id || n.sender_username || "");
     const text = String(n.text || "").trim();
@@ -686,7 +764,7 @@
       if (chat.seenIds.size > MAX_ID_CACHE_PER_CHAT) chat.seenIds.clear();
     }
 
-    // 2) fingerprint dedup (ловит одинаковые повторы даже без id)
+    // 2) fingerprint dedup
     const fp = buildFingerprint(n, tsMs);
     if (chat.seenFPs.has(fp)) return false;
     chat.seenFPs.add(fp);
@@ -814,7 +892,6 @@
         if (selectedLogin && String(chat.login_id) !== String(selectedLogin)) return false;
         if (cf && String(chat.chat_id) !== String(cf)) return false;
 
-        // IMPORTANT: в режиме Only new показываем активный чат даже если unread=0
         if (showOnlyNew && !(chat.unread > 0)) {
           const key = chatKey(chat.login_id, chat.chat_id);
           if (key !== selectedChatKey) return false;
@@ -964,7 +1041,7 @@
     }
   });
 
-  // --------------------- Export/Import Session
+  // --------------------- UI Export/Import
   function exportSession(){
     const payload = {
       version: 1,
@@ -994,18 +1071,36 @@
     const a = document.createElement("a");
     a.href = url;
     const safeDate = new Date().toISOString().replace(/[:.]/g, "-");
-    a.download = `tg-admin-session-${safeDate}.json`;
+    a.download = `tg-admin-ui-${safeDate}.json`;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
 
-    showNotification("Exported session JSON", "ok", 1800);
+    showNotification("Exported UI JSON", "ok", 1800);
+  }
+
+  function rebuildDedupCaches(chat, limit = 500){
+    chat.seenIds.clear();
+    chat.seenFPs.clear();
+
+    const arr = chat.messages || [];
+    const start = Math.max(0, arr.length - limit);
+
+    for (let i = start; i < arr.length; i++){
+      const m = arr[i];
+      const tsMs = m.ts || 0;
+      const sender = String(m.sender_id || m.sender_username || "");
+      const text = String(m.text || "").trim();
+      const tsSec = Math.floor(tsMs / 1000);
+      const fp = `${sender}|${tsSec}|${text}`;
+      chat.seenFPs.add(fp);
+    }
   }
 
   function importSessionFromObject(payload){
     if (!payload || payload.version !== 1 || !Array.isArray(payload.chats)) {
-      showNotification("Import failed: invalid JSON format", "err");
+      showNotification("UI Import failed: invalid JSON format", "err");
       return;
     }
 
@@ -1013,7 +1108,8 @@
 
     for (const item of payload.chats) {
       if (!item || !item.key || !item.chat_id) continue;
-      chats.set(item.key, {
+
+      const chatObj = {
         login_id: item.login_id ?? "",
         chat_id: item.chat_id,
         chat_title: item.chat_title ?? "",
@@ -1022,10 +1118,12 @@
         messages: Array.isArray(item.messages) ? item.messages : [],
         seenIds: new Set(),
         seenFPs: new Set(),
-      });
+      };
+
+      rebuildDedupCaches(chatObj);
+      chats.set(item.key, chatObj);
     }
 
-    // UI restore
     const ui = payload.ui || {};
     selectedLogin = ui.selectedLogin || "";
     selectedChatKey = ui.selectedChatKey || "";
@@ -1045,24 +1143,92 @@
     renderChatList();
     renderActiveChat(true);
 
-    showNotification("Imported session JSON", "ok", 2000);
+    showNotification("Imported UI JSON", "ok", 2000);
   }
 
-  exportBtn.addEventListener("click", exportSession);
+  exportUiBtn.addEventListener("click", exportSession);
+  importUiBtn.addEventListener("click", () => importUiFile.click());
 
-  importBtn.addEventListener("click", () => importFile.click());
-
-  importFile.addEventListener("change", async () => {
-    const file = importFile.files && importFile.files[0];
+  importUiFile.addEventListener("change", async () => {
+    const file = importUiFile.files && importUiFile.files[0];
     if (!file) return;
     try {
       const text = await file.text();
       const payload = JSON.parse(text);
       importSessionFromObject(payload);
     } catch (e) {
-      showNotification("Import failed: " + e.message, "err", 4000);
+      showNotification("UI Import failed: " + e.message, "err", 4000);
     } finally {
-      importFile.value = "";
+      importUiFile.value = "";
+    }
+  });
+
+  // --------------------- TG Export/Import
+  async function downloadBlob(filename, blob) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  exportTgBtn.addEventListener("click", async () => {
+    if (!selectedLogin) return showNotification("Select an account first", "err");
+
+    try {
+      const res = await fetch(`/auth/session/${encodeURIComponent(selectedLogin)}`);
+      if (!res.ok) {
+        const t = await res.text().catch(() => "");
+        return showNotification(`Export TG failed: ${res.status} ${t}`, "err", 4500);
+      }
+      const blob = await res.blob();
+      const safeDate = new Date().toISOString().replace(/[:.]/g, "-");
+      await downloadBlob(`tg-session-${selectedLogin}-${safeDate}.json`, blob);
+      showNotification("Exported TG session", "ok", 1800);
+    } catch (e) {
+      showNotification("Export TG error: " + e.message, "err", 4500);
+    }
+  });
+
+  importTgBtn.addEventListener("click", () => {
+    if (!selectedLogin) return showNotification("Select an account first", "err");
+    importTgFile.click();
+  });
+
+  importTgFile.addEventListener("change", async () => {
+    const file = importTgFile.files && importTgFile.files[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const payload = JSON.parse(text);
+
+      const loginId = (payload.login_id || selectedLogin || "").trim();
+      const sess = (payload.session_string || "").trim();
+
+      if (!sess) return showNotification("TG Import failed: no session_string", "err", 4500);
+
+      const res = await fetch("/auth/session/import", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ login_id: loginId, session_string: sess })
+      });
+
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return showNotification("TG Import failed: " + (j.detail || res.status), "err", 4500);
+      }
+
+      showNotification(`TG session imported for ${j.login_id}`, "ok", 2200);
+      await refreshLogins();
+
+    } catch (e) {
+      showNotification("TG Import error: " + e.message, "err", 4500);
+    } finally {
+      importTgFile.value = "";
     }
   });
 
