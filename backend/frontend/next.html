@@ -149,7 +149,7 @@ body{
   window.MATCH_TIMER_ENABLED = true
 */
 
-const TOTAL_SECONDS = 48 * 60 * 60; // 2 дня
+const TOTAL_SECONDS = (16 * 60 * 60) + (41 * 60); // 16h 41m
 let remaining = TOTAL_SECONDS;
 let interval = null;
 
@@ -158,8 +158,11 @@ function format(sec){
   const h = Math.floor((sec % 86400) / 3600);
   const m = Math.floor((sec % 3600) / 60);
   const s = sec % 60;
-  return `${d}d ${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+
+  const hhmmss = `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+  return d > 0 ? `${d}d ${hhmmss}` : hhmmss;
 }
+
 
 function tick(){
   if(remaining <= 0){
